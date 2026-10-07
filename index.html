@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Country Data Directory</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --border: #334155;
+      --accent: #38bdf8;
+      --success: #22c55e;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 2rem 1rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    p.subtitle {
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .search-container {
+      margin-bottom: 2rem;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 0.85rem 1.2rem;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background-color: var(--card-bg);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      cursor: pointer;
+      user-select: none;
+      transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+    }
+
+    .card:active {
+      transform: scale(0.98);
+    }
+
+    .flag {
+      font-size: 2.2rem;
+      line-height: 1;
+    }
+
+    .info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .country-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .country-code {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.2rem;
+    }
+
+    .status {
+      text-align: center;
+      color: var(--muted);
+      padding: 3rem 0;
+      font-size: 1.1rem;
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background-color: var(--card-bg);
+      color: var(--text);
+      border: 1px solid var(--accent);
+      padding: 0.75rem 1.25rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+      opacity: 0;
+      transform: translateY(1rem);
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      z-index: 1000;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Country Data Directory</h1>
+    <p class="subtitle">Click any card to copy flag emoji & ISO code to clipboard</p>
+  </header>
+
+  <div class="search-container">
+    <input 
+      type="text" 
+      id="searchInput" 
+      class="search-input" 
+      placeholder="Search country by name or ISO code..." 
+      autocomplete="off"
+    />
+  </div>
+
+  <div id="status" class="status">Loading countries...</div>
+  <div id="countryGrid" class="grid"></div>
+  <div id="toast" class="toast">Copied to clipboard!</div>
+
+  <script>
+    const API_URL = './api/countries.json';
+    let countriesData = [];
+    let toastTimeout;
+
+    const statusEl = document.getElementById('status');
+    const gridEl = document.getElementById('countryGrid');
+    const searchInput = document.getElementById('searchInput');
+    const toastEl = document.getElementById('toast');
+
+    // Fetch static JSON file
+    async function loadCountries() {
+      try {
+        const response = await fetch(API_URL);
+        if (!response.ok) {
+          throw new Error(`Failed to load: ${response.status} ${response.statusText}`);
+        }
+        countriesData = await response.json();
+        statusEl.style.display = 'none';
+        renderCountries(countriesData);
+      } catch (err) {
+        console.error('Fetch error:', err);
+        statusEl.textContent = 'Error loading country data. Ensure api/countries.json is available.';
+      }
+    }
+
+    // Copy handler with fallback
+    async function copyToClipboard(text, label) {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const textarea = document.createElement('textarea');
+          textarea.value = text;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+        }
+        showToast(`Copied ${label} (${text}) to clipboard!`);
+      } catch (err) {
+        console.error('Copy failed:', err);
+        showToast('Failed to copy to clipboard.');
+      }
+    }
+
+    // Display temporary toast notification
+    function showToast(message) {
+      toastEl.textContent = message;
+      toastEl.classList.add('show');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toastEl.classList.remove('show');
+      }, 2500);
+    }
+
+    // Render list to DOM
+    function renderCountries(list) {
+      gridEl.innerHTML = '';
+      if (list.length === 0) {
+        statusEl.textContent = 'No matching countries found.';
+        statusEl.style.display = 'block';
+        return;
+      }
+      statusEl.style.display = 'none';
+
+      const fragment = document.createDocumentFragment();
+      list.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.title = `Click to copy ${item.flag} ${item.code}`;
+        card.innerHTML = `
+          <span class="flag">${item.flag}</span>
+          <div class="info">
+            <span class="country-name">${item.name}</span>
+            <span class="country-code">ISO: ${item.code}</span>
+          </div>
+        `;
+
+        card.addEventListener('click', () => {
+          copyToClipboard(`${item.flag} ${item.code}`, item.name);
+        });
+
+        fragment.appendChild(card);
+      });
+      gridEl.appendChild(fragment);
+    }
+
+    // Filter list on search input
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase().trim();
+      const filtered = countriesData.filter(item => 
+        item.name.toLowerCase().includes(query) || 
+        item.code.toLowerCase().includes(query)
+      );
+      renderCountries(filtered);
+    });
+
+    // Initial load
+    loadCountries();
+  </script>
+</body>
+</html>
