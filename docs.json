@@ -1,0 +1,21 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Country Data API",
+  "navigation": [
+    {
+      "group": "Overview",
+      "pages": [
+        "introduction"
+      ]
+    },
+    {
+      "group": "Data Endpoints",
+      "pages": [
+        "api-reference/countries"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/hhj061540-lang/country-data"
+  }
+}
